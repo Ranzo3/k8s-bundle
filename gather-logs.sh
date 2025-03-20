@@ -52,6 +52,8 @@ weka_cmd_array=("weka events -n 10000" "weka status")
 # Default values
 namespace=$NAMESPACE
 operator_namespace=$OPERATOR_NAMESPACE
+wekacluster_namespace=$WEKACLUSTER_NAMESPACE
+wekaclient_namespace=$WEKACLIENT_NAMESPACE
 csi_namespace=$CSI_NAMESPACE
 output_dir="./logs/"$(date +%Y-%m-%d_%H-%M-%S)
 since="1h"
@@ -61,9 +63,7 @@ kubeconfig=~/.kube/config
 
 # Function to display usage information
 usage() {
-  echo "Usage: $0 [-n <namespace>] [-o <output_dir>] [-s <since>] [-t <tail_lines>]"
-  echo "  -n <namespace>   : Kubernetes namespace of the WekaCluster and/or WekaClient (default: $namespace)"
-  echo "  -w <namespace>   : Kubernetes namespace of the Weka Operator code (default: $operator_namespace)"
+  echo "Usage: $0 [-o <output_dir>] [-s <since>] [-t <tail_lines>]"
   echo "  -o <output_dir>  : Output directory for logs (default: $output_dir)"
   echo "  -s <since>       : Time duration for logs (e.g., 1h, 30m, 1d) (default: $since)"
   echo "  -t <tail_lines>  : Number of lines to tail from the end of the logs (default: $tail_lines)"
@@ -79,14 +79,8 @@ fi
 
 
 # Parse command-line arguments
-while getopts "n:w:o:s:t:k:ch" opt; do
+while getopts "o:s:t:k:ch" opt; do
   case $opt in
-    n)
-      namespace="$OPTARG"
-      ;;
-    w)
-      operator_namespace="$OPTARG"
-      ;;
     o)
       output_dir="$OPTARG"
       ;;
@@ -142,7 +136,7 @@ get_pod_logs() {
   fi
 }
 
-# Function to desribe a one pod
+# Function to desribe one pod
 describe_pod() {
   local pod_name="$1"
   local pod_namespace="$2"
@@ -186,7 +180,7 @@ get_node_logfile() {
   fi
 }
 
-# Function to run capture output from one 'weka' command
+# Function to capture output from one 'weka' command run on one pod
 run_wekacluster_cmd() {
   local pod_name="$1"
   local pod_namespace="$2"
@@ -238,14 +232,14 @@ cleanup_debug_pods() {
 # Get all nodes in the K8s cluster
 nodes=$(kubectl --kubeconfig "$kubeconfig" get nodes -o jsonpath='{.items[*].metadata.name}')
 
-# Get all compute pods in the WekaCluster and/or WekaClient namespace
-compute_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$namespace" --selector weka.io/mode=compute -o jsonpath='{.items[*].metadata.name}')
+# Get all compute pods in the WekaCluster namespace
+compute_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$wekcluster_namespace" --selector weka.io/mode=compute -o jsonpath='{.items[*].metadata.name}')
 
-# Get all drive pods in the WekaCluster and/or WekaClient namespace
-drive_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$namespace" --selector weka.io/mode=drive -o jsonpath='{.items[*].metadata.name}')
+# Get all drive pods in the WekaCluster namespace
+drive_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$wekacluster_namespace" --selector weka.io/mode=drive -o jsonpath='{.items[*].metadata.name}')
 
-# Get all client pods in the WekaCluster and/or WekaClient namespace
-client_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$namespace" --selector weka.io/mode=client -o jsonpath='{.items[*].metadata.name}')
+# Get all client pods in the WekaClient namespace
+client_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$wekaclient_namespace" --selector weka.io/mode=client -o jsonpath='{.items[*].metadata.name}')
 
 # Get all pods in the Weka Operator namespace
 operator_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$operator_namespace" -o jsonpath='{.items[*].metadata.name}')
@@ -257,10 +251,10 @@ csi_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$csi_namespace" -o js
 
 # If wekacluster_info is true, run wekacluster commands for one pod
 if [ "$wekacluster_info" = "true" ]; then
-  # Iterate over each pod in the WekaCluster namespace until one of them works
+  # Iterate over each compute pod in the WekaCluster namespace until one of them works
   for cmd in "${weka_cmd_array[@]}"; do
       for pod in $compute_pods; do
-        run_wekacluster_cmd "$pod" "$namespace" "$cmd"
+        run_wekacluster_cmd "$pod" "$wekacluster_namespace" "$cmd"
         if [ $? -eq 0 ]; then
           break
         fi
@@ -269,59 +263,46 @@ if [ "$wekacluster_info" = "true" ]; then
 fi
 
 
-# Iterate over each pod in the Weka Operator namespace
-for pod in $operator_pods; do
-  # Describe the pod and place in logs
-  describe_pod "$pod" "$operator_namespace"
 
-  # Get all containers in the current pod
-  containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$operator_namespace" -o jsonpath='{.spec.containers[*].name}')
-
-  # Iterate over each container in the current pod
-  for container in $containers; do
-    get_pod_logs "$pod" "$container" "$operator_namespace"
-  done
-done
-
-# Iterate over each compute pod in the Weka Cluster / Weka Client namespace
+# Iterate over each compute pod in the Weka Cluster namespace
 for pod in $compute_pods; do
   # Describe the pod and place in logs
-  describe_pod "$pod" "$namespace"
+  describe_pod "$pod" "$wekacluster_namespace"
 
   # Get all containers in the current pod
   containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
 
   # Iterate over each container in the current pod
   for container in $containers; do
-    get_pod_logs "$pod" "$container" "$namespace"
+    get_pod_logs "$pod" "$container" "$wekacluster_namespace"
   done
 done
 
-# Iterate over each drive pod in the Weka Cluster / Weka Client namespace
+# Iterate over each drive pod in the Weka Cluster namespace
 for pod in $drive_pods; do
   # Describe the pod and place in logs
-  describe_pod "$pod" "$namespace"
+  describe_pod "$pod" "$wekacluster_namespace"
 
   # Get all containers in the current pod
   containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
 
   # Iterate over each container in the current pod
   for container in $containers; do
-    get_pod_logs "$pod" "$container" "$namespace"
+    get_pod_logs "$pod" "$container" "$wekacluster_namespace"
   done
 done
 
-# Iterate over each client pod in the Weka Cluster / Weka Client namespace
+# Iterate over each client pod in the Weka Client namespace
 for pod in $client_pods; do
   # Describe the pod and place in logs
-  describe_pod "$pod" "$namespace"
+  describe_pod "$pod" "$wekaclient_namespace"
 
   # Get all containers in the current pod
   containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
 
   # Iterate over each container in the current pod
   for container in $containers; do
-    get_pod_logs "$pod" "$container" "$namespace"
+    get_pod_logs "$pod" "$container" "$wekaclient_namespace"
   done
 done
 
@@ -347,8 +328,7 @@ for node in $nodes; do
   describe_node "$node"
   # Iterate over each logfile
   for logfile in "${logfile_array[@]}"; do
-    echo $logfile
-    get_node_logfile "$node" "$logfile"
+#    get_node_logfile "$node" "$logfile"
   done
 done
 
