@@ -14,10 +14,10 @@ source_config() {
   # Source the config file in a subshell to avoid polluting the current environment
   # and then export the variables to the current environment.
   # This also handles comments and empty lines.
-  (
-    set -a # Automatically export all variables
-    source "$config_file"
-  )
+  
+  set -a # Automatically export all variables
+  source "$config_file"
+  
   
   if [[ $? -ne 0 ]]; then
     echo "Error: Failed to source config file '$config_file'." >&2
@@ -59,6 +59,10 @@ output_dir="./logs/"$(date +%Y-%m-%d_%H-%M-%S)
 since="1h"
 tail_lines="100"
 kubeconfig=~/.kube/config
+dump_cluster=false
+wekacluster_info=false
+
+
 
 
 # Function to display usage information
@@ -68,6 +72,7 @@ usage() {
   echo "  -s <since>       : Time duration for logs (e.g., 1h, 30m, 1d) (default: $since)"
   echo "  -t <tail_lines>  : Number of lines to tail from the end of the logs (default: $tail_lines)"
   echo "  -k <kubeconfig>  : Path to the kubeconfig file (default: ~/.kube/config)"
+  echo "  -d               : Dump cluster info (flag: default: Off)"
   echo "  -c               : Capture WekaCluster specific info (flag: default: Off)"
   echo "  -h               : Display this help message"
   exit 1
@@ -79,7 +84,7 @@ fi
 
 
 # Parse command-line arguments
-while getopts "o:s:t:k:ch" opt; do
+while getopts "o:s:t:k:dch" opt; do
   case $opt in
     o)
       output_dir="$OPTARG"
@@ -92,6 +97,9 @@ while getopts "o:s:t:k:ch" opt; do
       ;;
     k)
       kubeconfig="$OPTARG"
+      ;;
+    d)
+      dump_cluster=true
       ;;
     c)
       wekacluster_info=true
@@ -119,6 +127,66 @@ done
 # Create output directory if it doesn't exist
 mkdir -p "$output_dir"
 
+
+# Function to dump cluster info for WEKA namespaces
+dump_cluster_info() {
+  echo "Gathering cluster info..."
+  echo "Running command: kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $output_dir/cluster-info -ojson --namespaces $namespace,$operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace"
+  kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $output_dir/cluster-info -ojson --namespaces $namespace,$operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace
+  if [ $? -ne 0 ]; then
+    echo "Error getting cluster info"
+  fi
+}
+
+
+
+### Start Untested functions ###
+
+# Function to get all namespaces
+dump_namespaces() {
+  local namespaces_file="$output_dir/namespaces.txt"
+  echo "Gathering namespaces..."
+  echo "Running command: kubectl --kubeconfig $kubeconfig get namespaces"
+  kubectl --kubeconfig "$kubeconfig" get namespaces > "$namespaces_file" 2>&1
+  if [ $? -ne 0 ]; then
+    echo "Error getting namespaces"
+  fi
+}
+
+# Function to dump all events
+dump_events() {
+  local events_file="$output_dir/events.txt"
+  echo "Gathering events..."
+  echo "Running command: kubectl --kubeconfig $kubeconfig get events --all-namespaces"
+  kubectl --kubeconfig "$kubeconfig" get events --all-namespaces > "$events_file" 2>&1
+  if [ $? -ne 0 ]; then
+    echo "Error getting events"
+  fi
+}
+
+# Function to dump all persistent volumes
+dump_pvs() {
+  local pvs_file="$output_dir/persistent_volumes.txt"
+  echo "Gathering persistent volumes..."
+  echo "Running command: kubectl --kubeconfig $kubeconfig get pv"
+  kubectl --kubeconfig "$kubeconfig" get pv > "$pvs_file" 2>&1
+  if [ $? -ne 0 ]; then
+    echo "Error getting persistent volumes"
+  fi
+}
+
+# Function to dump all persistent volume claims
+dump_pvcs() {
+  local pvcs_file="$output_dir/persistent_volume_claims.txt"
+  echo "Gathering persistent volume claims..."
+  echo "Running command: kubectl --kubeconfig $kubeconfig get pvc --all-namespaces"
+  kubectl --kubeconfig "$kubeconfig" get pvc --all-namespaces > "$pvcs_file"
+  if [ $? -ne 0 ]; then
+    echo "Error getting persistent volume claims"
+  fi
+}
+
+### End Untested Functions ###
 
 
 # Function to get logs for one container in one pod
@@ -226,14 +294,15 @@ cleanup_debug_pods() {
 }
 
 
-
-
+if [[ $dump_cluster == "true" ]]; then
+  dump_cluster_info
+fi
 
 # Get all nodes in the K8s cluster
 nodes=$(kubectl --kubeconfig "$kubeconfig" get nodes -o jsonpath='{.items[*].metadata.name}')
 
 # Get all compute pods in the WekaCluster namespace
-compute_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$wekcluster_namespace" --selector weka.io/mode=compute -o jsonpath='{.items[*].metadata.name}')
+compute_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$wekacluster_namespace" --selector weka.io/mode=compute -o jsonpath='{.items[*].metadata.name}')
 
 # Get all drive pods in the WekaCluster namespace
 drive_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$wekacluster_namespace" --selector weka.io/mode=drive -o jsonpath='{.items[*].metadata.name}')
@@ -327,9 +396,9 @@ for node in $nodes; do
   # Describe the node and place in logs
   describe_node "$node"
   # Iterate over each logfile
-  for logfile in "${logfile_array[@]}"; do
+#  for logfile in "${logfile_array[@]}"; do
 #    get_node_logfile "$node" "$logfile"
-  done
+#  done
 done
 
 
