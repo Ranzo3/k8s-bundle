@@ -56,10 +56,11 @@ wekacluster_namespace=$WEKACLUSTER_NAMESPACE
 wekaclient_namespace=$WEKACLIENT_NAMESPACE
 csi_namespace=$CSI_NAMESPACE
 output_dir="./logs/"$(date +%Y-%m-%d_%H-%M-%S)
+cluster_dump_dir=$output_dir/cluster-info
 since="1h"
 tail_lines="100"
 kubeconfig=~/.kube/config
-dump_cluster=false
+dump_cluster=true
 wekacluster_info=false
 
 
@@ -72,7 +73,7 @@ usage() {
   echo "  -s <since>       : Time duration for logs (e.g., 1h, 30m, 1d) (default: $since)"
   echo "  -t <tail_lines>  : Number of lines to tail from the end of the logs (default: $tail_lines)"
   echo "  -k <kubeconfig>  : Path to the kubeconfig file (default: ~/.kube/config)"
-  echo "  -d               : Dump cluster info (flag: default: Off)"
+  echo "  -d               : Dump cluster info (flag: default: On)"
   echo "  -c               : Capture WekaCluster specific info (flag: default: Off)"
   echo "  -h               : Display this help message"
   exit 1
@@ -131,23 +132,20 @@ mkdir -p "$output_dir"
 # Function to dump cluster info for WEKA namespaces
 dump_cluster_info() {
   echo "Gathering cluster info..."
-  echo "Running command: kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $output_dir/cluster-info -ojson --namespaces $namespace,$operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace"
-  kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $output_dir/cluster-info -ojson --namespaces $namespace,$operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace
+  echo "Running command: kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $cluster_dump_dir -ojson --namespaces $namespace,$operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace"
+  kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $cluster_dump_dir -ojson --namespaces $namespace,$operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace
   if [ $? -ne 0 ]; then
     echo "Error getting cluster info"
   fi
 }
 
 
-
-### Start Untested functions ###
-
 # Function to get all namespaces
 dump_namespaces() {
-  local namespaces_file="$output_dir/namespaces.txt"
+  local namespaces_file="$cluster_dump_dir/all_namespaces.json"
   echo "Gathering namespaces..."
   echo "Running command: kubectl --kubeconfig $kubeconfig get namespaces"
-  kubectl --kubeconfig "$kubeconfig" get namespaces > "$namespaces_file" 2>&1
+  kubectl --kubeconfig "$kubeconfig" get namespaces -ojson > "$namespaces_file" 2>&1
   if [ $? -ne 0 ]; then
     echo "Error getting namespaces"
   fi
@@ -155,10 +153,10 @@ dump_namespaces() {
 
 # Function to dump all events
 dump_events() {
-  local events_file="$output_dir/events.txt"
+  local events_file="$cluster_dump_dir/events.json"
   echo "Gathering events..."
   echo "Running command: kubectl --kubeconfig $kubeconfig get events --all-namespaces"
-  kubectl --kubeconfig "$kubeconfig" get events --all-namespaces > "$events_file" 2>&1
+  kubectl --kubeconfig "$kubeconfig" get events -ojson --all-namespaces > "$events_file" 2>&1
   if [ $? -ne 0 ]; then
     echo "Error getting events"
   fi
@@ -166,10 +164,10 @@ dump_events() {
 
 # Function to dump all persistent volumes
 dump_pvs() {
-  local pvs_file="$output_dir/persistent_volumes.txt"
+  local pvs_file="$cluster_dump_dir/persistent_volumes.json"
   echo "Gathering persistent volumes..."
   echo "Running command: kubectl --kubeconfig $kubeconfig get pv"
-  kubectl --kubeconfig "$kubeconfig" get pv > "$pvs_file" 2>&1
+  kubectl --kubeconfig "$kubeconfig" get pv -ojson > "$pvs_file" 2>&1
   if [ $? -ne 0 ]; then
     echo "Error getting persistent volumes"
   fi
@@ -177,16 +175,15 @@ dump_pvs() {
 
 # Function to dump all persistent volume claims
 dump_pvcs() {
-  local pvcs_file="$output_dir/persistent_volume_claims.txt"
+  local pvcs_file="$cluster_dump_dir/persistent_volume_claims.json"
   echo "Gathering persistent volume claims..."
   echo "Running command: kubectl --kubeconfig $kubeconfig get pvc --all-namespaces"
-  kubectl --kubeconfig "$kubeconfig" get pvc --all-namespaces > "$pvcs_file"
+  kubectl --kubeconfig "$kubeconfig" get pvc -ojson --all-namespaces > "$pvcs_file"
   if [ $? -ne 0 ]; then
     echo "Error getting persistent volume claims"
   fi
 }
 
-### End Untested Functions ###
 
 
 # Function to get logs for one container in one pod
@@ -194,7 +191,7 @@ get_pod_logs() {
   local pod_name="$1"
   local container_name="$2"
   local pod_namespace="$3"
-  local log_file="$output_dir/${pod_name}_${container_name}.log"
+  local log_file="$cluster_dump_dir/$pod_namespace/$pod/${pod_name}_${container_name}.log"
 
   echo "Gathering logs for pod: $pod_name, container: $container_name"
   echo "Running command: kubectl --kubeconfig $kubeconfig logs $pod_name -n $pod_namespace -c $container_name --since=$since --tail=$tail_lines"
@@ -208,7 +205,7 @@ get_pod_logs() {
 describe_pod() {
   local pod_name="$1"
   local pod_namespace="$2"
-  local pod_file="$output_dir/pod_${pod_name}.describe"
+  local pod_file="$cluster_dump_dir/$pod_namespace/$pod/$pod_${pod_name}.describe"
 
   echo "Describing pod: $pod_name, namespace: $pod_namespace"
   echo "Running command: kubectl --kubeconfig $kubeconfig describe pod $pod_name -n $pod_namespace -o yaml"
@@ -222,8 +219,12 @@ describe_pod() {
 # Function to describe one node
 describe_node() {
   local node_name="$1"
-  local node_file="$output_dir/node_${node_name}.describe"
+  local dirname=$cluster_dump_dir/nodes/$node_name
+  local node_file="$dirname/node_${node_name}.describe"
 
+  echo "Creating directory: $dirname"
+  mkdir -p "$dirname"
+  
   echo "Describing node: $node_name"
   echo "Running command: kubectl --kubeconfig $kubeconfig describe node $node_name"
   kubectl --kubeconfig "$kubeconfig" describe node "$node_name" > "$node_file" 2>&1
@@ -236,7 +237,14 @@ describe_node() {
 get_node_logfile() {
   local node_name="$1"
   local logfile="$2"
-  local log_file="$output_dir/node_${node_name}_$(basename "$logfile").log"
+  local dirname2=$(dirname $logfile)
+  local dirname=$cluster_dump_dir/nodes/$node_name$dirname2
+  local basename=$(basename $logfile)
+  local log_file="$dirname/$basename"
+
+  
+  echo "Creating directory: $dirname"
+  mkdir -p "$dirname"
 
   echo "Gathering logfile: $logfile from node: $node_name"
   echo "Running command: kubectl --kubeconfig $kubeconfig debug node/$node_name -q --image=busybox --attach=true --target=host -- chroot /host cat $logfile"
@@ -253,7 +261,7 @@ run_wekacluster_cmd() {
   local pod_name="$1"
   local pod_namespace="$2"
   local cmd="$3"
-  local log_file="$output_dir/wekacluster.log"
+  local log_file="$output_dir/wekacluster.txt"
   echo "Running command: $cmd, pod: $pod_name, namespace: $pod_namespace"
   echo "Running command: kubectl --kubeconfig $kubeconfig exec -n $pod_namespace $pod_name -- $cmd"
   kubectl --kubeconfig "$kubeconfig" exec -n $pod_namespace $pod_name -- $cmd >> "$log_file" 2>&1
@@ -296,6 +304,10 @@ cleanup_debug_pods() {
 
 if [[ $dump_cluster == "true" ]]; then
   dump_cluster_info
+  dump_namespaces
+  dump_events
+  dump_pvs
+  dump_pvcs
 fi
 
 # Get all nodes in the K8s cluster
@@ -396,9 +408,9 @@ for node in $nodes; do
   # Describe the node and place in logs
   describe_node "$node"
   # Iterate over each logfile
-#  for logfile in "${logfile_array[@]}"; do
-#    get_node_logfile "$node" "$logfile"
-#  done
+  for logfile in "${logfile_array[@]}"; do
+    get_node_logfile "$node" "$logfile"
+  done
 done
 
 
