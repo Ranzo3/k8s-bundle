@@ -60,8 +60,17 @@ cluster_dump_dir=$output_dir/cluster-info
 since="1h"
 tail_lines="100"
 kubeconfig=~/.kube/config
-dump_cluster=true
+dump_cluster=false
 wekacluster_info=false
+
+if [[ dev_mode ]]; then
+  echo "Dev mode is on"
+  output_dir="./logs/dev"
+  rm -r "$output_dir"
+  mkdir -p "$output_dir"
+  cluster_dump_dir=$output_dir/cluster-info
+  dump_cluster=true
+fi
 
 
 
@@ -85,7 +94,7 @@ fi
 
 
 # Parse command-line arguments
-while getopts "o:s:t:k:dch" opt; do
+while getopts "o:s:t:k:dchx" opt; do
   case $opt in
     o)
       output_dir="$OPTARG"
@@ -105,7 +114,9 @@ while getopts "o:s:t:k:dch" opt; do
     c)
       wekacluster_info=true
       ;;
-
+    x)
+      dev_mode=true
+      ;;  
     h)
       usage
       ;;
@@ -125,8 +136,7 @@ done
 
 
 
-# Create output directory if it doesn't exist
-mkdir -p "$output_dir"
+
 
 
 # Function to dump cluster info for WEKA namespaces
@@ -280,11 +290,54 @@ get_all_pods() {
     echo "Error getting pods in namespace: $namespace"
     exit 1
   fi
-  if [ "$pods" == "" ]; then
-    echo "No pods found in namespace: $namespace"
+}
+
+# Function to output all wekacontainers in a namespace
+dump_wekacontainers() {
+  local namespace="$1"
+  local log_file="$cluster_dump_dir/$namespace/wekacontainer.json"
+  echo "Gathering wekacontainers in namespace: $namespace"
+
+  echo "Running command: kubectl --kubeconfig $kubeconfig get wekacontainers -n $namespace -ojson"
+  kubectl --kubeconfig "$kubeconfig" get wekacontainers -n "$namespace" -ojson > "$log_file" 2>&1
+  
+  if [ $? -ne 0 ]; then
+    echo "Error getting wekacontainers in namespace: $namespace"
     exit 1
   fi
 }
+
+# Function to output all wekaclusters in a namespace
+dump_wekaclusters() {
+  local namespace="$1"
+  local log_file="$cluster_dump_dir/$namespace/wekacluster.json"
+  echo "Gathering wekaclusters in namespace: $namespace"
+
+  echo "Running command: kubectl --kubeconfig $kubeconfig get wekaclusters -n $namespace -ojson"
+  kubectl --kubeconfig "$kubeconfig" get wekaclusters -n "$namespace" -ojson > "$log_file" 2>&1
+  
+  if [ $? -ne 0 ]; then
+    echo "Error getting wekaclusters in namespace: $namespace"
+    exit 1
+  fi
+}
+
+# Function to output all wekaclients in a namespace
+dump_wekaclients() {
+  local namespace="$1"
+  local log_file="$cluster_dump_dir/$namespace/wekaclient.json"
+  echo "Gathering wekaclients in namespace: $namespace"
+
+  echo "Running command: kubectl --kubeconfig $kubeconfig get wekaclients -n $namespace -ojson"
+  kubectl --kubeconfig "$kubeconfig" get wekaclients -n "$namespace" -ojson > "$log_file" 2>&1
+  
+  if [ $? -ne 0 ]; then
+    echo "Error getting wekaclients in namespace: $namespace"
+    exit 1
+  fi
+}
+
+
 
 # Function to clean up debugger pods
 cleanup_debug_pods() {
@@ -302,12 +355,29 @@ cleanup_debug_pods() {
 }
 
 
+
+###
+
+# Create output and cluster dump directory if it doesn't exist
+mkdir -p "$output_dir"
+mkdir -p "$cluster_dump_dir"
+
+
 if [[ $dump_cluster == "true" ]]; then
   dump_cluster_info
   dump_namespaces
   dump_events
   dump_pvs
   dump_pvcs
+
+  dump_wekacontainers "$operator_namespace"
+  dump_wekacontainers "$wekacluster_namespace"
+  dump_wekacontainers "$wekaclient_namespace"
+
+  dump_wekaclusters "$wekacluster_namespace"
+  dump_wekaclients "$wekaclient_namespace"
+
+  dump_wekacontainers "$operator_namespace"
 fi
 
 # Get all nodes in the K8s cluster
