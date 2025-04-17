@@ -6,11 +6,6 @@ CONFIG_FILE="./config.env"
 source_config() {
   local config_file="$1"
 
-  if [[ ! -f "$config_file" ]]; then
-    echo "Error: Config file '$config_file' not found." >&2
-    return 1
-  fi
-
   # Source the config file in a subshell to avoid polluting the current environment
   # and then export the variables to the current environment.
   # This also handles comments and empty lines.
@@ -44,33 +39,30 @@ fi
 #   kubectl in your enviornment and PATH
 
 # Config values
-# Future enhancement: detect OS and set logfile_array accordingly
+# Future enhancement: detect OS and set logfile_array accordingly.  It will differ for Ubuntu vs RHEL for example.  Maybe leverage "WEKA Diagnostics"
 # Future enhancement: allow wildcards in logfile_array
 logfile_array=("/var/log/error" "/var/log/syslog" "/proc/wekafs/interface")
 weka_cmd_array=("weka events -n 10000" "weka status")
 
-# Default values
+
+# For these you can use a config file or set environment variables
 namespace=$NAMESPACE
 operator_namespace=$OPERATOR_NAMESPACE
 wekacluster_namespace=$WEKACLUSTER_NAMESPACE
 wekaclient_namespace=$WEKACLIENT_NAMESPACE
 csi_namespace=$CSI_NAMESPACE
+
+# Default values
+dev_mode=false
 output_dir="./logs/"$(date +%Y-%m-%d_%H-%M-%S)
-cluster_dump_dir=$output_dir/cluster-info
+cluster_dump_dir=$output_dir/cluster-info  #Use the K8s cluster-info structure, even if we don't run `kubectl cluster-info dump`
 since="1h"
 tail_lines="100"
 kubeconfig=~/.kube/config
-dump_cluster=false
-wekacluster_info=false
+dump_cluster=true
+wekacluster_cli=false
 
-if [[ dev_mode ]]; then
-  echo "Dev mode is on"
-  output_dir="./logs/dev"
-  rm -r "$output_dir"
-  mkdir -p "$output_dir"
-  cluster_dump_dir=$output_dir/cluster-info
-  dump_cluster=true
-fi
+
 
 
 
@@ -78,13 +70,14 @@ fi
 # Function to display usage information
 usage() {
   echo "Usage: $0 [-o <output_dir>] [-s <since>] [-t <tail_lines>]"
-  echo "  -o <output_dir>  : Output directory for logs (default: $output_dir)"
-  echo "  -s <since>       : Time duration for logs (e.g., 1h, 30m, 1d) (default: $since)"
-  echo "  -t <tail_lines>  : Number of lines to tail from the end of the logs (default: $tail_lines)"
-  echo "  -k <kubeconfig>  : Path to the kubeconfig file (default: ~/.kube/config)"
-  echo "  -d               : Dump cluster info (flag: default: On)"
-  echo "  -c               : Capture WekaCluster specific info (flag: default: Off)"
-  echo "  -h               : Display this help message"
+  echo "  -o, --output <output_dir>       : Output directory for logs (default: $output_dir)"
+  echo "  -s, --since <since>             : Time duration for logs (e.g., 1h, 30m, 1d) (default: $since)"
+  echo "  -t, --tail <tail_lines>         : Number of lines to tail from the end of the logs (default: $tail_lines)"
+  echo "  -k, --kubeconfig <kubeconfig>   : Path to the kubeconfig file (default: $kubeconfig)"
+  echo "  --no-dump                       : Do not run kubectl cluster-info dump. Useful on large clusters with many non-WEKA items"
+  echo "  --no-wekacluster-cli            : Do not run WekaCluster API calls.  Useful if WEKA API non-responsive."
+  echo "  -h, --help                      : Display this help message"
+  echo "  --devmode                       : Run in devmode (default: false)"
   exit 1
 }
 
@@ -94,7 +87,61 @@ fi
 
 
 # Parse command-line arguments
-while getopts "o:s:t:k:dchx" opt; do
+
+#Process arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -o|--output)
+      OUTPUT_FILE="$2"
+      shift 2
+      ;;    
+    -s|--since)
+      since="$2"
+      shift 2
+      ;;
+    -t|--tail)
+      tail_lines="$2"
+      shift 2
+      ;;
+    -k|--kubeconfig)
+      kubeconfig="$2"
+      shift 2
+      ;;
+    --no-dump)
+      dump_cluster=false
+      shift
+      ;;
+    --no-wekacluster-cli)
+      wekacluster_cli=true
+      shift
+      ;;
+    --devmode)
+      dev_mode=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      usage
+      ;;
+  esac
+done
+shift $((OPTIND-1))
+
+    
+if [[ dev_mode ]]; then
+  echo "Dev mode is on"
+  output_dir="./logs/dev"  #Allows you to reuse the same directory over and over
+  rm -r "$output_dir"
+  cluster_dump_dir=$output_dir/cluster-info
+fi
+
+# Dead code I hope
+#while getopts "o:s:t:k:dchx" opt; do
+while [ 1 -eq 2 ]; do
   case $opt in
     o)
       output_dir="$OPTARG"
@@ -112,7 +159,7 @@ while getopts "o:s:t:k:dchx" opt; do
       dump_cluster=true
       ;;
     c)
-      wekacluster_info=true
+      wekacluster_cli=true
       ;;
     x)
       dev_mode=true
@@ -203,6 +250,8 @@ get_pod_logs() {
   local pod_namespace="$3"
   local log_file="$cluster_dump_dir/$pod_namespace/$pod/${pod_name}_${container_name}.log"
 
+  mkdir -p $(dirname $log_file)
+  
   echo "Gathering logs for pod: $pod_name, container: $container_name"
   echo "Running command: kubectl --kubeconfig $kubeconfig logs $pod_name -n $pod_namespace -c $container_name --since=$since --tail=$tail_lines"
   kubectl --kubeconfig "$kubeconfig" logs "$pod_name" -n "$pod_namespace" -c "$container_name" --since="$since" --tail="$tail_lines" > "$log_file" 2>&1
@@ -217,6 +266,8 @@ describe_pod() {
   local pod_namespace="$2"
   local pod_file="$cluster_dump_dir/$pod_namespace/$pod/$pod_${pod_name}.describe"
 
+  mkdir -p $(dirname $pod_file)
+  
   echo "Describing pod: $pod_name, namespace: $pod_namespace"
   echo "Running command: kubectl --kubeconfig $kubeconfig describe pod $pod_name -n $pod_namespace -o yaml"
   kubectl --kubeconfig "$kubeconfig" describe pod "$pod_name" -n "$pod_namespace" > "$pod_file" 2>&1
@@ -296,6 +347,8 @@ get_all_pods() {
 dump_wekacontainers() {
   local namespace="$1"
   local log_file="$cluster_dump_dir/$namespace/wekacontainer.json"
+
+  mkdir -p $(dirname $log_file)
   echo "Gathering wekacontainers in namespace: $namespace"
 
   echo "Running command: kubectl --kubeconfig $kubeconfig get wekacontainers -n $namespace -ojson"
@@ -311,6 +364,8 @@ dump_wekacontainers() {
 dump_wekaclusters() {
   local namespace="$1"
   local log_file="$cluster_dump_dir/$namespace/wekacluster.json"
+
+  mkdir -p $(dirname $log_file)
   echo "Gathering wekaclusters in namespace: $namespace"
 
   echo "Running command: kubectl --kubeconfig $kubeconfig get wekaclusters -n $namespace -ojson"
@@ -326,6 +381,8 @@ dump_wekaclusters() {
 dump_wekaclients() {
   local namespace="$1"
   local log_file="$cluster_dump_dir/$namespace/wekaclient.json"
+
+  mkdir -p $(dirname $log_file)
   echo "Gathering wekaclients in namespace: $namespace"
 
   echo "Running command: kubectl --kubeconfig $kubeconfig get wekaclients -n $namespace -ojson"
@@ -365,20 +422,21 @@ mkdir -p "$cluster_dump_dir"
 
 if [[ $dump_cluster == "true" ]]; then
   dump_cluster_info
-  dump_namespaces
-  dump_events
-  dump_pvs
-  dump_pvcs
-
-  dump_wekacontainers "$operator_namespace"
-  dump_wekacontainers "$wekacluster_namespace"
-  dump_wekacontainers "$wekaclient_namespace"
-
-  dump_wekaclusters "$wekacluster_namespace"
-  dump_wekaclients "$wekaclient_namespace"
-
-  dump_wekacontainers "$operator_namespace"
 fi
+
+dump_namespaces
+dump_events
+dump_pvs
+dump_pvcs
+
+dump_wekacontainers "$operator_namespace"
+dump_wekacontainers "$wekacluster_namespace"
+dump_wekacontainers "$wekaclient_namespace"
+
+dump_wekaclusters "$wekacluster_namespace"
+dump_wekaclients "$wekaclient_namespace"
+
+dump_wekacontainers "$operator_namespace"
 
 # Get all nodes in the K8s cluster
 nodes=$(kubectl --kubeconfig "$kubeconfig" get nodes -o jsonpath='{.items[*].metadata.name}')
@@ -400,8 +458,8 @@ csi_pods=$(kubectl --kubeconfig "$kubeconfig" get pods -n "$csi_namespace" -o js
 
 
 
-# If wekacluster_info is true, run wekacluster commands for one pod
-if [ "$wekacluster_info" = "true" ]; then
+# If wekacluster_cli is true, run wekacluster commands for one pod
+if [ "$wekacluster_cli" = "true" ]; then
   # Iterate over each compute pod in the WekaCluster namespace until one of them works
   for cmd in "${weka_cmd_array[@]}"; do
       for pod in $compute_pods; do
@@ -414,64 +472,65 @@ if [ "$wekacluster_info" = "true" ]; then
 fi
 
 
+# Only do this approach if $dump_cluster == "false"
+if [[ $dump_cluster == "false" ]]; then
+  # Iterate over each compute pod in the Weka Cluster namespace
+  for pod in $compute_pods; do
+    # Describe the pod and place in logs
+    describe_pod "$pod" "$wekacluster_namespace"
 
-# Iterate over each compute pod in the Weka Cluster namespace
-for pod in $compute_pods; do
-  # Describe the pod and place in logs
-  describe_pod "$pod" "$wekacluster_namespace"
+    # Get all containers in the current pod
+    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
 
-  # Get all containers in the current pod
-  containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
-
-  # Iterate over each container in the current pod
-  for container in $containers; do
-    get_pod_logs "$pod" "$container" "$wekacluster_namespace"
+    # Iterate over each container in the current pod
+    for container in $containers; do
+      get_pod_logs "$pod" "$container" "$wekacluster_namespace"
+    done
   done
-done
 
-# Iterate over each drive pod in the Weka Cluster namespace
-for pod in $drive_pods; do
-  # Describe the pod and place in logs
-  describe_pod "$pod" "$wekacluster_namespace"
+  # Iterate over each drive pod in the Weka Cluster namespace
+  for pod in $drive_pods; do
+    # Describe the pod and place in logs
+    describe_pod "$pod" "$wekacluster_namespace"
 
-  # Get all containers in the current pod
-  containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
+    # Get all containers in the current pod
+    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
 
-  # Iterate over each container in the current pod
-  for container in $containers; do
-    get_pod_logs "$pod" "$container" "$wekacluster_namespace"
+    # Iterate over each container in the current pod
+    for container in $containers; do
+      get_pod_logs "$pod" "$container" "$wekacluster_namespace"
+    done
   done
-done
 
-# Iterate over each client pod in the Weka Client namespace
-for pod in $client_pods; do
-  # Describe the pod and place in logs
-  describe_pod "$pod" "$wekaclient_namespace"
+  # Iterate over each client pod in the Weka Client namespace
+  for pod in $client_pods; do
+    # Describe the pod and place in logs
+    describe_pod "$pod" "$wekaclient_namespace"
 
-  # Get all containers in the current pod
-  containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
+    # Get all containers in the current pod
+    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
 
-  # Iterate over each container in the current pod
-  for container in $containers; do
-    get_pod_logs "$pod" "$container" "$wekaclient_namespace"
+    # Iterate over each container in the current pod
+    for container in $containers; do
+      get_pod_logs "$pod" "$container" "$wekaclient_namespace"
+    done
   done
-done
 
 
-# Iterate over each pod in the CSI namespace
-for pod in $csi_pods; do
-  # Describe the pod and place in logs
-  describe_pod "$pod" "$csi_namespace"
+  # Iterate over each pod in the CSI namespace
+  for pod in $csi_pods; do
+    # Describe the pod and place in logs
+    describe_pod "$pod" "$csi_namespace"
 
-  # Get all containers in the current pod
-  containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$csi_namespace" -o jsonpath='{.spec.containers[*].name}')
+    # Get all containers in the current pod
+    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$csi_namespace" -o jsonpath='{.spec.containers[*].name}')
 
-  # Iterate over each container in the current pod
-  for container in $containers; do
-    get_pod_logs "$pod" "$container" "$csi_namespace"
+    # Iterate over each container in the current pod
+    for container in $containers; do
+      get_pod_logs "$pod" "$container" "$csi_namespace"
+    done
   done
-done
-
+fi
 
 # Iterate over each node
 for node in $nodes; do
@@ -482,7 +541,6 @@ for node in $nodes; do
     get_node_logfile "$node" "$logfile"
   done
 done
-
 
 echo "Logs saved to: $output_dir"
 
