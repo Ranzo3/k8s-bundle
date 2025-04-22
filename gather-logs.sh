@@ -1,22 +1,34 @@
 #!/usr/bin/env bash
-# Config file path (you can change this)
-CONFIG_FILE="./config.env"
+
+# Bug:  shows configfile loaded when running usage (Fixed)
+# RFE:  In usage tell user config.env is required(Fixed)
+# Bug:  Remove Namespace from config (Fixed)
+# RFE:  ./config.env tell user it should be "strings" (Fixed)
+# Bug:  Usage first line is not correct (Fixed)
+# Bug:  dev mode is on by default (fixed)
+# RFE:  Allow export KUBECONFIG instead of -k (Fixed)
+# RFE:  Configfile should be mandatory option with default (Fixed)
+
+# RFE:  Show more output when running kubectl 
 
 # Function to source a config file and set environment variables
 source_config() {
   local config_file="$1"
 
+  if [ ! -f "$config_file" ]; then
+    echo "Error: Config file '$config_file' not found." >&2
+    exit 1
+  fi  
   # Source the config file in a subshell to avoid polluting the current environment
   # and then export the variables to the current environment.
   # This also handles comments and empty lines.
   
   set -a # Automatically export all variables
   source "$config_file"
-  
-  
+    
   if [[ $? -ne 0 ]]; then
     echo "Error: Failed to source config file '$config_file'." >&2
-    return 1
+    exit 1
   fi
 
   echo "Successfully loaded config from '$config_file'."
@@ -24,10 +36,7 @@ source_config() {
 }
 
 
-# Source the config file if it exists
-if [[ -f "$CONFIG_FILE" ]]; then
-  source_config "$CONFIG_FILE"
-fi
+
 
 # Log this scripts ouptut to a logfile
 # mylog=gather-logs.$(date +%Y-%m-%d_%H-%M-%S).log
@@ -45,52 +54,46 @@ logfile_array=("/var/log/error" "/var/log/syslog" "/proc/wekafs/interface")
 weka_cmd_array=("weka events -n 10000" "weka status")
 
 
-# For these you can use a config file or set environment variables
-namespace=$NAMESPACE
-operator_namespace=$OPERATOR_NAMESPACE
-wekacluster_namespace=$WEKACLUSTER_NAMESPACE
-wekaclient_namespace=$WEKACLIENT_NAMESPACE
-csi_namespace=$CSI_NAMESPACE
+
 
 # Default values
 dev_mode=false
 output_dir="./logs/"$(date +%Y-%m-%d_%H-%M-%S)
+config_file="./config.env"
 cluster_dump_dir=$output_dir/cluster-info  #Use the K8s cluster-info structure, even if we don't run `kubectl cluster-info dump`
 since="1h"
 tail_lines="100"
-kubeconfig=~/.kube/config
+if [ -n "$KUBECONFIG" ]; then
+  kubeconfig=$KUBECONFIG
+else
+  kubeconfig=~/.kube/config
+fi
 dump_cluster=true
-wekacluster_cli=false
-
-
-
-
-
+wekacluster_cli=true
 
 # Function to display usage information
 usage() {
-  echo "Usage: $0 [-o <output_dir>] [-s <since>] [-t <tail_lines>]"
+  echo "Usage: $0 [-c | --config <config_file>] [-o | --output <output_dir>] [-s | --since <since>] [-t | --tail <tail_lines>] [-k | --kubeconfig <kubeconfig>] [--no-dump] [--no-wekacluster-cli] [-h | --help]"
+  echo "  -c, --config <config_file>      : Path to the config file (default: ./config.env. Note: A config file is required)"
   echo "  -o, --output <output_dir>       : Output directory for logs (default: $output_dir)"
   echo "  -s, --since <since>             : Time duration for logs (e.g., 1h, 30m, 1d) (default: $since)"
   echo "  -t, --tail <tail_lines>         : Number of lines to tail from the end of the logs (default: $tail_lines)"
-  echo "  -k, --kubeconfig <kubeconfig>   : Path to the kubeconfig file (default: $kubeconfig)"
-  echo "  --no-dump                       : Do not run kubectl cluster-info dump. Useful on large clusters with many non-WEKA items"
-  echo "  --no-wekacluster-cli            : Do not run WekaCluster API calls.  Useful if WEKA API non-responsive."
+  echo "  -k, --kubeconfig <kubeconfig>   : Path to the kubeconfig file.  Can be set by env variable KUBECONFIG. (default: $kubeconfig)"
+  echo "  --no-dump                       : Do not run kubectl cluster-info dump. Useful on large clusters with many non-WEKA items. (default: run cluster-info dump)"
+  echo "  --no-wekacluster-cli            : Do not run WekaCluster API calls.  Useful if WEKA API non-responsive. (default: run WekaCluster API calls)"
   echo "  -h, --help                      : Display this help message"
   echo "  --devmode                       : Run in devmode (default: false)"
   exit 1
 }
 
-if [ $# -eq 0 ]; then
-  usage
-fi
-
-
-# Parse command-line arguments
 
 #Process arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
+    -c|--config)
+      config_file="$2"
+      shift 2
+      ;;
     -o|--output)
       OUTPUT_FILE="$2"
       shift 2
@@ -131,57 +134,24 @@ while [[ $# -gt 0 ]]; do
 done
 shift $((OPTIND-1))
 
+# Source the config file if it exists
+#if [[ -f "$config_file" ]]; then
+#  source_config "$config_file"
+#fi
+
+# Source the config file (it must exist)
+source_config "$config_file"
+operator_namespace=$OPERATOR_NAMESPACE
+wekacluster_namespace=$WEKACLUSTER_NAMESPACE
+wekaclient_namespace=$WEKACLIENT_NAMESPACE
+csi_namespace=$CSI_NAMESPACE
     
-if [[ dev_mode ]]; then
+if [[ "$dev_mode" = "true" ]]; then
   echo "Dev mode is on"
   output_dir="./logs/dev"  #Allows you to reuse the same directory over and over
   rm -r "$output_dir"
   cluster_dump_dir=$output_dir/cluster-info
 fi
-
-# Dead code I hope
-#while getopts "o:s:t:k:dchx" opt; do
-while [ 1 -eq 2 ]; do
-  case $opt in
-    o)
-      output_dir="$OPTARG"
-      ;;
-    s)
-      since="$OPTARG"
-      ;;
-    t)
-      tail_lines="$OPTARG"
-      ;;
-    k)
-      kubeconfig="$OPTARG"
-      ;;
-    d)
-      dump_cluster=true
-      ;;
-    c)
-      wekacluster_cli=true
-      ;;
-    x)
-      dev_mode=true
-      ;;  
-    h)
-      usage
-      ;;
-    *)
-      usage
-      ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
-      usage
-      ;;
-    :)
-      echo "Option -$OPTARG requires an argument." >&2
-      usage
-      ;;
-  esac
-done
-
-
 
 
 
@@ -189,8 +159,8 @@ done
 # Function to dump cluster info for WEKA namespaces
 dump_cluster_info() {
   echo "Gathering cluster info..."
-  echo "Running command: kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $cluster_dump_dir -ojson --namespaces $namespace,$operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace"
-  kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $cluster_dump_dir -ojson --namespaces $namespace,$operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace
+  echo "Running command: kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $cluster_dump_dir -ojson --namespaces $operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace"
+  kubectl --kubeconfig $kubeconfig cluster-info dump --output-directory $cluster_dump_dir -ojson --namespaces $operator_namespace,$wekacluster_namespace,$wekaclient_namespace,$csi_namespace
   if [ $? -ne 0 ]; then
     echo "Error getting cluster info"
   fi
@@ -480,7 +450,7 @@ if [[ $dump_cluster == "false" ]]; then
     describe_pod "$pod" "$wekacluster_namespace"
 
     # Get all containers in the current pod
-    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
+    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$wekacluster_namespace" -o jsonpath='{.spec.containers[*].name}')
 
     # Iterate over each container in the current pod
     for container in $containers; do
@@ -494,7 +464,7 @@ if [[ $dump_cluster == "false" ]]; then
     describe_pod "$pod" "$wekacluster_namespace"
 
     # Get all containers in the current pod
-    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
+    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$wekacluster_namespace" -o jsonpath='{.spec.containers[*].name}')
 
     # Iterate over each container in the current pod
     for container in $containers; do
@@ -508,7 +478,7 @@ if [[ $dump_cluster == "false" ]]; then
     describe_pod "$pod" "$wekaclient_namespace"
 
     # Get all containers in the current pod
-    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].name}')
+    containers=$(kubectl --kubeconfig "$kubeconfig" get pod "$pod" -n "$wekaclient_namespace" -o jsonpath='{.spec.containers[*].name}')
 
     # Iterate over each container in the current pod
     for container in $containers; do
