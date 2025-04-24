@@ -39,7 +39,7 @@ def read_json_file(file_path):
             data = json.load(f)
             return data
     except FileNotFoundError:
-        print(f"Error: File not found at {file_path}")
+        print(f"Warning: File not found at {file_path}")
         raise
     except json.JSONDecodeError:
         print(f"Error: Invalid JSON format in {file_path}")
@@ -164,8 +164,12 @@ def main():
         print("")
         print("Pods:")
         file_path = args.output_dir + '/cluster-info/' + namespace + '/pods.json'
-        data = read_json_file(file_path)
-        pods = data.get('items', [])
+        try:
+            data = read_json_file(file_path)
+            pods = data.get('items', [])
+        except (FileNotFoundError) as err:
+            print(file_path+" not found, probably no data for this object type in this namespace, continuing...")
+
         if pods:
             print_pods(pods)
         else:
@@ -176,12 +180,10 @@ def main():
         file_path = args.output_dir + '/cluster-info/' + namespace + '/wekacontainer.json'
         try:
             data = read_json_file(file_path)
-            data = read_json_file(file_path)
             wekacontainers = data.get('items', [])
         except (FileNotFoundError) as err:
             print(file_path+" not found, probably no data for this object type in this namespace, continuing...")
-            # Note when we dump pods for a namespace with no pods with cluster-info, we get a file with empty items.
-            # But when we dump wekacontainers with custom script, we get no file.  We should probably clean this up at some point, but it's a small nit.
+
         if wekacontainers:
             print_wekacontainers(wekacontainers)
         else:
@@ -192,12 +194,10 @@ def main():
         file_path = args.output_dir + '/cluster-info/' + namespace + '/wekacluster.json'
         try:
             data = read_json_file(file_path)
-            data = read_json_file(file_path)
             wekaclusters = data.get('items', [])
         except (FileNotFoundError) as err:
             print(file_path+" not found, probably no data for this object type in this namespace, continuing...")
-            # Note when we dump pods for a namespace with no pods with cluster-info, we get a file with empty items.
-            # But when we dump wekacluster with custom script, we get no file.  We should probably clean this up at some point, but it's a small nit.
+
         if wekaclusters:
             print_wekaclusters(wekaclusters)
         else:
@@ -208,12 +208,10 @@ def main():
         file_path = args.output_dir + '/cluster-info/' + namespace + '/wekaclient.json'
         try:
             data = read_json_file(file_path)
-            data = read_json_file(file_path)
             wekaclients = data.get('items', [])
         except (FileNotFoundError) as err:
             print(file_path+" not found, probably no data for this object type in this namespace, continuing...")
-            # Note when we dump pods for a namespace with no pods with cluster-info, we get a file with empty items.
-            # But when we dump wekaclient with custom script, we get no file.  We should probably clean this up at some point, but it's a small nit.
+            
         if wekaclients:
             print_wekaclients(wekaclients)
         else:
