@@ -1,10 +1,14 @@
+
+
 import json
 import argparse
 import re
+import os
+import sys
 
 parser = argparse.ArgumentParser(description='Process k8s bundle')
-parser.add_argument('--config', dest='config_file', help='Path to the configuration file')
-parser.add_argument('--output', dest='output_dir', help='Path to the output directory')
+parser.add_argument('--config', dest='config_file', default="./config.env", help='Path to the configuration file. Default is ./config.env.')
+parser.add_argument('--bundle', dest='bundle_dir', default=".", help='Path to the bundle directory. Default is current directory.')
 args = parser.parse_args()
 
 
@@ -28,7 +32,7 @@ def read_config_file(file_path):
                     config[key] = value
         return config        
     except FileNotFoundError:
-        print(f"Error: File not found at {file_path}")
+        print(f"ERROR: File not found at {file_path}")
         raise
         
 
@@ -39,10 +43,10 @@ def read_json_file(file_path):
             data = json.load(f)
             return data
     except FileNotFoundError:
-        print(f"Warning: File not found at {file_path}")
+        print(f"WARNING: File not found at "+file_path)
         raise
     except json.JSONDecodeError:
-        print(f"Error: Invalid JSON format in {file_path}")
+        print(f"ERROR: Invalid JSON format in "+file_path)
         raise
         
 
@@ -139,12 +143,18 @@ def main():
     if args.config_file:
         config = read_config_file(args.config_file)
         if config:
-            print("Configuration loaded successfully.")
+            print("Configuration loaded successfully from "+args.config_file+".")
         else:
             print("Failed to load configuration.")
     else:
         print("No configuration file provided.")
         return
+
+    # Check bundle directory exists
+    if not os.path.exists(args.bundle_dir+"/cluster-info"):
+        print("ERROR: Failed to find expected bundle information at "+args.bundle_dir+"/cluster-info.")
+        print("  Move bundle or specify --bundle argument.")
+        sys.exit(1)
 
     namespaces = get_namespaces(config)
     print(namespaces)
@@ -163,7 +173,7 @@ def main():
 
         print("")
         print("Pods:")
-        file_path = args.output_dir + '/cluster-info/' + namespace + '/pods.json'
+        file_path = args.bundle_dir + '/cluster-info/' + namespace + '/pods.json'
         try:
             data = read_json_file(file_path)
             pods = data.get('items', [])
@@ -177,7 +187,7 @@ def main():
             
         print("")
         print("WekaContainers:")
-        file_path = args.output_dir + '/cluster-info/' + namespace + '/wekacontainer.json'
+        file_path = args.bundle_dir + '/cluster-info/' + namespace + '/wekacontainer.json'
         try:
             data = read_json_file(file_path)
             wekacontainers = data.get('items', [])
@@ -191,7 +201,7 @@ def main():
 
         print("")
         print("WekaClusters:")
-        file_path = args.output_dir + '/cluster-info/' + namespace + '/wekacluster.json'
+        file_path = args.bundle_dir + '/cluster-info/' + namespace + '/wekacluster.json'
         try:
             data = read_json_file(file_path)
             wekaclusters = data.get('items', [])
@@ -205,7 +215,7 @@ def main():
         
         print("")
         print("WekaClients:")
-        file_path = args.output_dir + '/cluster-info/' + namespace + '/wekaclient.json'
+        file_path = args.bundle_dir + '/cluster-info/' + namespace + '/wekaclient.json'
         try:
             data = read_json_file(file_path)
             wekaclients = data.get('items', [])
