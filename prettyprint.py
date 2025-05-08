@@ -88,7 +88,8 @@ def print_wekacontainers(wekacontainers):
         name = metadata.get('name')
         # Sometimes status of a container is empty (None)
         status=wekacontainer.get('status',{}).get('status') or ""
-        mode=metadata.get('labels',{}).get('weka.io/mode')
+        # Sometimes mode of a container is empty (None)
+        mode=metadata.get('labels',{}).get('weka.io/mode') or ""
         startTime=metadata.get('creationTimestamp')
         print("{0:<{nw}} {1:<{nsw}} {2:<{sw}} {3:<{mw}} {4:<{stw}}".format(
             name, namespace, status, mode, startTime, nw=nameWidth, nsw=namespaceWidth, sw=statusWidth, mw=modeWidth, stw=startTimeWidth))

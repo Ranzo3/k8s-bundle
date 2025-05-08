@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
 
-# Bug:  shows configfile loaded when running usage (Fixed)
-# RFE:  In usage tell user config.env is required(Fixed)
-# Bug:  Remove Namespace from config (Fixed)
-# RFE:  ./config.env tell user it should be "strings" (Fixed)
-# Bug:  Usage first line is not correct (Fixed)
-# Bug:  dev mode is on by default (fixed)
-# RFE:  Allow export KUBECONFIG instead of -k (Fixed)
-# RFE:  Configfile should be mandatory option with default (Fixed)
-
+# Bug:  Not using output dir arg correctly (Fixed)
 # RFE:  Show more output when running kubectl 
+# Bug:  Don't get pods when running with --no-dump
 
 # Function to source a config file and set environment variables
 source_config() {
@@ -60,7 +53,6 @@ weka_cmd_array=("weka events -n 10000" "weka status")
 dev_mode=false
 output_dir="./logs/"$(date +%Y-%m-%d_%H-%M-%S)
 config_file="./config.env"
-cluster_dump_dir=$output_dir/cluster-info  #Use the K8s cluster-info structure, even if we don't run `kubectl cluster-info dump`
 since="1h"
 tail_lines="100"
 if [ -n "$KUBECONFIG" ]; then
@@ -95,7 +87,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -o|--output)
-      OUTPUT_FILE="$2"
+      output_dir="$2"
       shift 2
       ;;    
     -s|--since)
@@ -133,6 +125,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 shift $((OPTIND-1))
+
+cluster_dump_dir=$output_dir/cluster-info  #Use the K8s cluster-info structure, even if we don't run `kubectl cluster-info dump`
 
 # Source the config file if it exists
 #if [[ -f "$config_file" ]]; then
