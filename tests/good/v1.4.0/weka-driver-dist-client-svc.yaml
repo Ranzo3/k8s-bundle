@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: weka-driver-dist-client
+  namespace: default
+spec:
+  type: ClusterIP
+  ports:
+    - name: weka-driver-dist-client
+      port: 60002
+      targetPort: 60002
+  selector:
+    app: weka-driver-dist-client
+

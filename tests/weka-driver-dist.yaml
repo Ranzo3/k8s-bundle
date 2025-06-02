@@ -1,0 +1,21 @@
+apiVersion: weka.weka.io/v1alpha1
+kind: WekaContainer
+metadata:
+  labels:
+    app: weka-driver-dist
+  name: weka-driver-dist
+  namespace: default
+spec:
+  agentPort: 60001
+  cpuPolicy: auto
+  image: quay.io/weka.io/weka-in-container:4.3.5.105-k8s.3
+  imagePullSecret: quay-io-robot-secret
+  mode: drivers-dist
+  name: dist
+  network:
+    aws: {}
+  numCores: 1
+  port: 60002
+  state: active
+  upgradePolicyType: manual
+  wekaSecretRef: {}

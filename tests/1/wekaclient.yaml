@@ -1,0 +1,24 @@
+apiVersion: weka.weka.io/v1alpha1
+kind: WekaClient
+metadata:
+  name: cluster-dev-clients
+  namespace: default
+spec:
+  coresNum: 1
+  cpuPolicy: auto
+  driversDistService: weka-driver-dist-client.default.svc.cluster.local:60002
+  image: quay.io/weka.io/weka-in-container:4.3.5.105-k8s.3
+  imagePullSecret: quay-io-robot-secret
+  network:
+    aws: {}
+  nodeSelector:
+    weka.io/supports-clients: "true"
+  portRange:
+    basePort: 46000
+    portRange: 0
+  joinIpPorts:
+    - 111.111.111.111:35000
+  upgradePolicy:
+    type: all-at-once
+  wekaHomeConfig: {}
+  wekaSecretRef: weka-client-cluster-dev
