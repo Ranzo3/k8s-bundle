@@ -1,6 +1,7 @@
 #!/bin/bash
 TEST=$1
-OPERATOR_VERSION=v1.4.0
+
+source $TEST/bliss_setup.env
 
 if [ ! $TEST ]; then
   echo "Supply one argument for test folder"
@@ -12,8 +13,33 @@ if [ ! -d $TEST ]; then
   exit 1
 fi
 
-~/scripts/bliss_prov_435.sh
-~/scripts/bliss_install_435.sh
+#~/scripts/bliss_prov_435.sh
+
+bliss provision aws-k3s \
+--template=aws_k3_small \
+--subnet-id $myPublicSubnet \
+--region $myRegion \
+--security-groups $mySG  \
+--key-pair-name $myKeyPair \
+--cluster-name $myCluster \
+--ami-id $myAMI \
+--tag Owner=$OWNER \
+--tag TTL=1d \
+--iam-profile-arn arn:aws:iam::034362041757:instance-profile/bliss-k3s-instance-profile \
+--reinstall
+
+#~/scripts/bliss_install_435.sh
+
+bliss install \
+--quay-username=$QUAY_USERNAME \
+--quay-password=$QUAY_PASSWORD \
+--weka-image $WEKA_IMAGE \
+--cluster-name $myCluster \
+--operator-version $OPERATOR_VERSION \
+--no-csi \
+--no-csi-sc \
+--no-weka-cluster \
+--no-operator
 
 KUBECONFIG=$(ls -t1 ~/kube* | head -1)
 export KUBECONFIG
@@ -28,5 +54,10 @@ helm upgrade --create-namespace \
   --version $OPERATOR_VERSION \
   --set imagePullSecret=quay-io-robot-secret
 
+helm repo add csi-wekafs https://weka.github.io/csi-wekafs
+helm install csi-wekafs csi-wekafs/csi-wekafsplugin \
+  --namespace csi-wekafs --create-namespace \
+  --version $CSI_VERSION \
+  --set pluginConfig.allowInsecureHttps=true
 
-kubectl apply -f $TEST
+

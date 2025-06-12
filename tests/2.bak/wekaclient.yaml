@@ -2,12 +2,12 @@ apiVersion: weka.weka.io/v1alpha1
 kind: WekaClient
 metadata:
   name: cluster-dev-clients
-  namespace: "1"
+  namespace: 2
 spec:
   coresNum: 1
   cpuPolicy: auto
   driversDistService: weka-driver-dist-client.default.svc.cluster.local:60002
-  image: quay.io/weka.io/weka-in-container:4.3.5.105-k8s.3
+  image: quay.io/weka.io/weka-in-container:4.3.5.105-k8s.3.wrong
   imagePullSecret: quay-io-robot-secret
   network:
     aws: {}

@@ -1,1 +1,3 @@
 Missing driver-builder
+Client Side Only
+Safe for Namespace Setup

@@ -1,0 +1,12 @@
+Missing Client connection secret
+Tested on 
+  operator v1.6.1
+  weka quay.io/weka.io/weka-in-container:4.3.5.105-k8s.3
+Diag
+	API test unbound PVC
+	PVC waiting
+	Wekaclient pod secret not found
+Solution
+        Create the secret (Hard, because join token required)
+        -or-
+        Modify WekaClient to use the created secret

@@ -2,7 +2,7 @@ apiVersion: weka.weka.io/v1alpha1
 kind: WekaClient
 metadata:
   name: cluster-dev-clients
-  namespace: default
+  namespace: "2"
 spec:
   coresNum: 1
   cpuPolicy: auto

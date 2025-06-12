@@ -1,0 +1,17 @@
+apiVersion: weka.weka.io/v1alpha1
+kind: WekaPolicy
+metadata:
+  name: erase-sign-drives-policy
+  namespace: default
+spec:
+  type: "sign-drives"
+  payload:
+    signDrivesPayload:
+      type: aws-all
+      nodeSelector:
+        weka.io/supports-backends: "true"
+      options:
+        allowEraseWekaPartitions: true
+        allowNonEmptyDevice: true
+    interval: 100m
+    

@@ -1,0 +1,16 @@
+apiVersion: weka.weka.io/v1alpha1
+kind: WekaManualOperation
+metadata:
+  name: sign-aws-drives
+  namespace: weka-operator-system
+spec:
+  action: "force-resign-drives"
+  imagePullSecret: "quay-io-robot-secret"
+  payload:
+    signDrivesPayload:
+      type: aws-all
+      nodeSelector:
+        weka.io/supports-backends: "true"
+      options:
+        allowEraseWekaPartitions: true
+        allowNonEmptyDevice: true

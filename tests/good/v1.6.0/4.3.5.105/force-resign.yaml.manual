@@ -1,0 +1,11 @@
+apiVersion: weka.weka.io/v1alpha1
+kind: WekaManualOperation
+metadata:
+  name: force-resign-aws-drives
+  namespace: weka-operator-system
+spec:
+  action: "force-resign-drives"
+  imagePullSecret: "quay-io-robot-secret"
+  payload:
+    forceResignDrivesPayload:
+      nodeName: 3.101.143.189

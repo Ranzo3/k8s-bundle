@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+    labels:
+      app: csi-daemonset-app-on-dir-api
+    name: csi-wekafs-test-api
+    namespace: default
+spec:
+  revisionHistoryLimit: 10
+  selector:
+   matchLabels:
+    kubernetes.io/os: linux
+  template:
+    metadata:
+      labels:
+        app: csi-daemonset-app-on-dir-api
+        kubernetes.io/os: linux
+    spec:
+      containers:
+      - args:
+        - -c
+        - while true; do echo $(date) hello >> /data/$(hostname).txt; sleep 10;done
+        command:
+        - /bin/sh
+        image: busybox
+        imagePullPolicy: Always
+        name: my-frontend
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /data
+          name: csi-wekafs-dir-api
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        topology.csi.weka.io/global: "true"
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 1
+      volumes:
+      - name: csi-wekafs-dir-api
+        persistentVolumeClaim:
+          claimName: pvc-wekafs-dir-api
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate

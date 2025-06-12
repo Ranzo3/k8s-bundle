@@ -2,7 +2,7 @@ apiVersion: weka.weka.io/v1alpha1
 kind: WekaPolicy
 metadata:
   name: sign-all-drives-policy
-  namespace: default
+  namespace: "9"
 spec:
   type: "sign-drives"
   payload:
@@ -11,3 +11,4 @@ spec:
       nodeSelector:
         weka.io/supports-backends: "true"
     interval: 5m
+    

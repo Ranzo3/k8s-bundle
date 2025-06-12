@@ -1,1 +1,3 @@
 Wronge image in WekaClient
+Client Side Only
+Safe for Namespace setup
