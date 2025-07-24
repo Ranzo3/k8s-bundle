@@ -1,0 +1,18 @@
+apiVersion: weka.weka.io/v1alpha1
+kind: WekaClient
+metadata:
+  name: cluster-dev-clients
+  namespace: "9"
+spec:
+  image: quay.io/weka.io/weka-in-container:4.3.5.105-k8s.3
+  imagePullSecret: "quay-io-robot-secret"
+  portRange:
+    basePort: 46000
+  nodeSelector:
+    weka.io/supports-clients: "true"
+  wekaSecretRef: weka-clients-cluster-dev
+  targetCluster:
+    name: cluster-dev
+    namespace: "9"
+  coresNum: 1
+  driversDistService: "https://weka-driver-dist-client.default.svc.cluster.local:60002"

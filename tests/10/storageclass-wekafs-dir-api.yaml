@@ -1,0 +1,22 @@
+allowVolumeExpansion: true
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: storageclass-wekafs-dir-api
+parameters:
+  capacityEnforcement: HARD
+  csi.storage.k8s.io/controller-expand-secret-name: weka-csi-cluster-dev
+  csi.storage.k8s.io/controller-expand-secret-namespace: "10"
+  csi.storage.k8s.io/controller-publish-secret-name: weka-csi-cluster-dev
+  csi.storage.k8s.io/controller-publish-secret-namespace: "10"
+  csi.storage.k8s.io/node-publish-secret-name: weka-csi-cluster-dev
+  csi.storage.k8s.io/node-publish-secret-namespace: "10"
+  csi.storage.k8s.io/node-stage-secret-name: weka-csi-cluster-dev
+  csi.storage.k8s.io/node-stage-secret-namespace: "10"
+  csi.storage.k8s.io/provisioner-secret-name: weka-csi-cluster-dev
+  csi.storage.k8s.io/provisioner-secret-namespace: "10"
+  filesystemName: default
+  volumeType: dir/v1
+provisioner: csi.weka.io
+reclaimPolicy: Delete
+volumeBindingMode: Immediate

@@ -1,0 +1,14 @@
+apiVersion: weka.weka.io/v1alpha1
+kind: WekaPolicy
+metadata:
+  name: sign-all-drives-policy
+  namespace: "20"
+spec:
+  type: "sign-drives"
+  payload:
+    signDrivesPayload:
+      type: aws-all
+      nodeSelector:
+        weka.io/supports-backends: "true"
+    interval: 5m
+    

@@ -2,12 +2,12 @@ apiVersion: weka.weka.io/v1alpha1
 kind: WekaContainer
 metadata:
   name: weka-driver-dist-client
-  namespace: default
+  namespace: "5"
   labels:
     app: weka-driver-dist-client
 spec:
   agentPort: 60001
-  image: quay.io/weka.io/weka-in-container:4.3.5.105-k8s.3
+  image: quay.io/weka.io/weka-in-container:4.4.2.157-k8s.2
   nodeSelector:
     weka.io/supports-clients: "true"
   imagePullSecret: "quay-io-robot-secret"

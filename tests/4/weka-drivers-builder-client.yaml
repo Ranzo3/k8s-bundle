@@ -2,7 +2,7 @@ apiVersion: weka.weka.io/v1alpha1
 kind: WekaContainer
 metadata:
   name: weka-drivers-builder-client
-  namespace: default
+  namespace: "4"
 spec:
   agentPort: 60001
   image: quay.io/weka.io/weka-in-container:4.4.2.157-k8s.2

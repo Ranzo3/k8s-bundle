@@ -228,23 +228,6 @@ def main():
         else:
             print("No WekaClients found in this namespace.")
         
-    """
-    Print pods
-    file_path = 'logs/dev/cluster-info/weka-operator-system/pods.json'
-    data = read_json_file(file_path)
-    pods = data.get('items', [])
-    print_pods(pods)
-    """
-
-
-    for pod in pods:
-        metadata = pod.get('metadata', {})
-        namespace = metadata.get('namespace')
-        name = metadata.get('name')
-        phase=pod.get('status',{}).get('phase')
-        host_ip=pod.get('status',{}).get('hostIP')
-        startTime=pod.get('status',{}).get('startTime')
-        
 
 if __name__ == "__main__":
     main()  

@@ -1,8 +1,8 @@
 apiVersion: weka.weka.io/v1alpha1
 kind: WekaContainer
 metadata:
-  name: weka-drivers-builder-client
-  namespace: default
+  name: weka-drivers-builder
+  namespace: "12"
 spec:
   agentPort: 60001
   image: quay.io/weka.io/weka-in-container:4.4.2.157-k8s.2
@@ -12,6 +12,5 @@ spec:
   mode: "drivers-builder"
   name: dist
   numCores: 1
-  uploadResultsTo: "weka-driver-dist-client"
+  uploadResultsTo: "weka-driver-dist"
   port: 60002
-

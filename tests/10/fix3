@@ -1,0 +1,12 @@
+apiVersion: v1
+data:
+  endpoints: MTcyLjMxLjEuMTQ2OjM1MDAwLDE3Mi4zMS40LjE3OjM1MDAwLDE3Mi4zMS40LjE3OjM1MTAwLDE3Mi4zMS4xLjE0NjozNTEwMCwxNzIuMzEuMTMuNzg6MzUwMDAsMTcyLjMxLjEzLjc4OjM1MTAwLDE3Mi4zMS4yLjkyOjM1MDAwLDE3Mi4zMS4yLjkyOjM1MTAwLDE3Mi4zMS4xMy4xNDA6MzUxMDAsMTcyLjMxLjEzLjE0MDozNTAwMCwxNzIuMzEuMy4xNjU6MzUxMDAsMTcyLjMxLjMuMTY1OjM1MDAw
+  organization: Um9vdA==
+  password: czkwVDhpcUhjMWl1ZzVVMWQ1RVlhNnhqOGwzSHpFek0=
+  scheme: aHR0cHM=
+  username: d2VrYWNzaTU2NWEyNWY2OGJkMA==
+kind: Secret
+metadata:
+  name: weka-csi-cluster-dev
+  namespace: "10"
+type: Opaque

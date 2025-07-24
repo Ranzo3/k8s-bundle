@@ -1,0 +1,14 @@
+Can't resolve TargetCluster
+and missing Client Secret
+Tested on 
+  operator v1.6.1
+  Weka 4.4.2
+Diag
+	API test unbound PVC
+	PVC waiting
+	Wekaclient no containers, no pods
+        View controller logs
+Solution
+
+        Add Join Ip List
+	Add Secret

@@ -1,0 +1,15 @@
+apiVersion: weka.weka.io/v1alpha1
+kind: WekaCluster
+metadata:
+  name: cluster-dev
+  namespace: default
+spec:
+  template: dynamic
+  dynamicTemplate:
+    computeContainers: 6
+    driveContainers: 6
+  image: quay.io/weka.io/weka-in-container:4.4.2.157-k8s.2
+  nodeSelector:
+    weka.io/supports-backends: "true"
+  driversDistService: https://weka-driver-dist.default.svc.cluster.local:60002
+  imagePullSecret: "quay-io-robot-secret"
